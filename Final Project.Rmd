@@ -3,6 +3,8 @@ title: "Final Project"
 author: "Onyul Haque"
 date: "4/25/2022"
 output: pdf_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -10,7 +12,273 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-This is a test
+library(tidyr)
+library(dplyr)
+library(reshape2)
+library(car)
+library(compute.es)
+library(effects)
+library(multcomp) 
+library(pastecs)
+library(psych)
+library(ggplot2)
+library(gmodels)
+library(mlogit)
+library(Hmisc)
+```
+
+
+```{r Directory}
+#Enter Data
+trust <- read.csv("Trust - Plausible Deniability_February 18, 2021_19.08.csv", header= TRUE, na.strings = "")
+```
+
+
+```{r Remove Pilot data}
+trust <- trust[-c(1:2),]
+trust <- trust[!(trust$Status == "Survey Preview"),]
+
+#Only gather participants who actually finished
+trust <- trust[trust$Finished == "True",]
+
+#Make sure your responses are eliminated
+trust <- trust[!(trust$Q8.1 == "ony"),]
+
+###### The Pilot Data Start Date
+#trust <- trust[trust$StartDate >= as.POSIXct("2020-10-31 06:00:00") & trust$StartDate <= as.POSIXct("2021-01-31 06:00:00"),]
+
+######THE Data Collection
+trust <- trust[trust$StartDate >= as.POSIXct("2021-02-04 18:00:00"),]
+
+#Eliminate Participants who took way too long
+trust$Duration..in.seconds. <- as.numeric(trust$Duration..in.seconds.)
+hist(trust$Duration..in.seconds.,
+     breaks = seq(0, 10000, by = 1000))
+duration.percentile <- ecdf(trust$Duration..in.seconds.)
+duration.percentile(1800)
+
+
+#Subset correct columns
+trust <- trust[,-c(1:18)]
+```
+
+
+```{r Column Names}
+#Rename Columns
+colnames(trust) <- c("lt.cc.duration", "lt.cc.end", "lt.cc.random",
+                     "lt.cc.choice", 
+                     "lt.instruction.first.click", "lt.instruction.last.click",  
+                     "lt.instruction.submit.page", "lt.instruction.click.count","lt.decision",
+                     "lt.decision.first.click",
+                     "lt.decision.last.click", "lt.decision.page.submit","lt.decision.click.count",
+                     "tt.id", "tt.cc.duration", "tt.cc.end","tt.cc.random", 
+                     "tt.cc.choice", "tt.cc.PersonB", 
+                     "tt.instruction.first.click", "tt.instruction.last.click", 
+                     "tt.instruction.submit.page","tt.instruction.click.count", 
+                     "tt.decision", "tt.decision.first.click",
+                     "tt.decision.last.click", "tt.decision.page.submit", "tt.decision.click.count",
+                     "lnt.instruction.first.click", "lnt.instruction.last.click", 
+                     "lnt.instruction.submit.page","lnt.instruction.click.count", 
+                     "lnt.decision", "lnt.decision.first.click",
+                     "lnt.decision.last.click", "lnt.decision.page.submit", "lnt.decision.click.count",
+                     "tnt.id", "tnt.instruction.first.click", "tnt.instruction.last.click", 
+                     "tnt.instruction.submit.page","tnt.instruction.click.count", 
+                     "tnt.decision", "tnt.decision.first.click",
+                     "tnt.decision.last.click", "tnt.decision.page.submit", "tnt.decision.click.count",
+                     "game1", "game2",
+                     "dishonor.trust", "honor.trust",
+                     "confusing","cutoff.purpose", "study.purpose", "length", "id")
+
 
 ```
+
+
+```{r}
+#Remove rows with NA in GAME 1 column
+dim(trust)
+trust <- as_tibble(trust)
+trust <- trust %>% 
+  drop_na(game1)
+dim(trust)
+
+#Remove participants who have taken it twice 
+dim(trust)
+trust <- trust %>% distinct(id, .keep_all = TRUE)
+dim(trust)
+```
+
+
+```{r}
+#Convert to numeric type
+cols.num <- c("lt.cc.duration","lt.instruction.first.click", "lt.instruction.last.click",
+              "lt.instruction.submit.page","lt.instruction.click.count",
+              "lt.decision.first.click", "lt.decision.last.click",
+              "lt.decision.page.submit","lt.decision.click.count",
+              "tt.cc.duration","tt.instruction.first.click", "tt.instruction.last.click", 
+              "tt.instruction.submit.page", "tt.instruction.click.count",
+              "tt.decision.first.click", "tt.decision.last.click",
+              "tt.decision.page.submit","tt.decision.click.count",
+              "lnt.instruction.first.click","lnt.instruction.last.click","lnt.instruction.submit.page",
+              "lnt.instruction.click.count","lnt.decision.first.click","lnt.decision.last.click",
+              "lnt.decision.page.submit", "lnt.decision.click.count",
+              "tnt.instruction.first.click","tnt.instruction.last.click","tnt.instruction.submit.page",
+              "tnt.instruction.click.count","tnt.decision.first.click","tnt.decision.last.click",
+              "tnt.decision.page.submit", "tnt.decision.click.count",
+              "dishonor.trust","honor.trust")
+
+
+
+trust[ , cols.num] <- apply(trust[ ,cols.num],
+                          MARGIN = 2,
+                          function(x)as.numeric(as.character(x)))
+sapply(trust, class)
+```
+
+
+```{r}
+#Put "cutoff" for people who took longer than 30 seconds in timer conditions
+trust <- within(trust, lt.decision[lt.decision.page.submit >= 30] <- "Cutoff")
+trust <- within(trust, tt.decision[tt.decision.page.submit >= 30] <- "Cutoff")
+
+#Convert to Factors
+cols.factor <- c("lt.cc.end", "lt.cc.random", "lt.cc.choice",
+                 "tt.cc.end", "tt.cc.random", "tt.cc.choice", "tt.cc.PersonB",
+                 "lt.decision", "tt.decision", "lnt.decision", "tnt.decision")
+
+trust[cols.factor] <- lapply(trust[cols.factor], as.factor)
+sapply(trust, class)
+```
+
+
+```{r Comprehension Check Questions}
+#Lottery Timer
+table(trust$lt.cc.duration)
+table(trust$lt.cc.end)
+table(trust$lt.cc.random)
+table(trust$lt.cc.choice)
+
+#Trust Timer
+table(trust$tt.cc.duration)
+table(trust$tt.cc.end)
+table(trust$tt.cc.random)
+table(trust$tt.cc.choice)
+table(trust$tt.cc.PersonB)
+
+```
+
+
+
+```{r Remove Failed Comprehension Check Questions}
+#Gather ID's of people who passed Lottery Timer Comp Questions
+lt.pass <- trust$id[c(trust$lt.cc.duration == 30 & 
+                     trust$lt.cc.end == "False" & 
+                     trust$lt.cc.random == "True" &
+                     trust$lt.cc.choice == "False")]
+lt.pass <- na.omit(lt.pass)
+
+
+#Gather ID's of people who passed Trust Timer Comp Questions
+#Pilot Data Collection
+#tt.pass <- trust$id[c(trust$tt.cc.duration == 30  & 
+                   #   trust$tt.cc.end == "False" & 
+                    #  trust$tt.cc.random == "True" &
+                    #  trust$tt.cc.choice == "False")]
+
+
+## The Data COllection
+tt.pass <- trust$id[c(trust$tt.cc.duration == 30  & 
+                      trust$tt.cc.end == "False" & 
+                      trust$tt.cc.random == "True" &
+                      trust$tt.cc.choice == "False" &
+                      trust$tt.cc.PersonB == "False" )]
+
+
+tt.pass <- na.omit(tt.pass)
+
+#Gather ID's of people who passed in No timer Conditions
+lnt.pass <- trust$id[trust$lnt.decision == "Option 1" | trust$lnt.decision == "Option 2"]
+lnt.pass <- na.omit(lnt.pass)
+
+tnt.pass <- trust$id[trust$tnt.decision == "Option 1" | trust$tnt.decision == "Option 2"]
+tnt.pass <- na.omit(tnt.pass)
+
+valid.id <- c(lt.pass, tt.pass, lnt.pass, tnt.pass)
+
+trust <- trust[c(trust$id %in% valid.id),]
+
+#trust long subset for only the relevant variable in Analysis
+
+trustlong <- trust[, c("lt.instruction.submit.page","lt.decision", "lt.decision.first.click",
+  "lt.decision.last.click", "lt.decision.page.submit","lt.decision.click.count", "tt.instruction.submit.page", 
+  "tt.decision", "tt.decision.first.click",
+  "tt.decision.last.click", "tt.decision.page.submit", "tt.decision.click.count","lnt.instruction.submit.page", 
+  "lnt.decision", "lnt.decision.first.click",
+  "lnt.decision.last.click", "lnt.decision.page.submit", "lnt.decision.click.count","tnt.instruction.submit.page", 
+  "tnt.decision", "tnt.decision.first.click",
+  "tnt.decision.last.click", "tnt.decision.page.submit", "tnt.decision.click.count", "id", "length")]
+
+#Standardized Covariate
+#Create standardize function
+standardize <- function(variable){
+  (variable - mean(variable, na.rm = TRUE))/sd(variable, na.rm = TRUE)
+}
+
+trustlong$z.lt.instruction.timer <- standardize(trustlong$lt.instruction.submit.page)
+trustlong$z.tt.instruction.timer <- standardize(trustlong$tt.instruction.submit.page)
+trustlong$z.lnt.instruction.timer <- standardize(trustlong$lnt.instruction.submit.page)
+trustlong$z.tnt.instruction.timer <- standardize(trustlong$tnt.instruction.submit.page)
+
+#Melt Data For Analysis
+trustlong <- trustlong %>% 
+  gather(key = "condition", value = "decision", 
+         c(lt.decision, tt.decision, lnt.decision, tnt.decision)) %>% 
+  gather(key = "fc.condition", value = "fc.decision.sec",
+         contains("decision.first")) %>% 
+  gather(key = "lc.condition", value = "lc.decision.sec",
+         contains("decision.last")) %>% 
+  gather(key = "submit.condition", value = "submit.decision.sec",
+         contains("decision.page")) %>% 
+  gather(key = "cc.condition", value = "cc.decision",
+         contains("decision.click")) %>% 
+  gather(key = "instruction.condition", value = "instruction.time",
+         contains("instruction.submit")) %>% 
+  gather(key = "z.covariate", value = "z.instruction.time",
+         c(z.lt.instruction.timer, z.tt.instruction.timer, z.lnt.instruction.timer, z.tnt.instruction.timer))
+
+#Gather complete cases
+trustlong <- na.omit(trustlong)
+
+trustlong <- within(trustlong, decision[submit.decision.sec >= 30] <- "Cutoff")
+trustlong$decision <- ifelse(trustlong$decision == "Option 2", "Give $5", "Did not Give $5")
+trustlong$decision <- as.factor(trustlong$decision)
+```
+
+## Bayesian Analysis - Give vs Do not Give
+
+```{r}
+#First Create A Prior
+ggplot(tibble(th = c(0, 1)), aes(x = th)) +
+    stat_function(fun = dbeta, args = list(shape1 = 1, shape2 = 3)) +
+    ylim(0, 3) +
+    labs(y = "", x = expression(theta), title = "Beta(1, 3)")
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
