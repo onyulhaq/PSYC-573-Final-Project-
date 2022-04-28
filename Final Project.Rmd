@@ -11,7 +11,7 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+```{r, include=FALSE}
 library(tidyr)
 library(dplyr)
 library(reshape2)
@@ -40,13 +40,13 @@ theme_set(theme_classic() +
 ```
 
 
-```{r Directory}
+```{r Directory, echo=FALSE}
 #Enter Data
 trust <- read.csv("Trust - Plausible Deniability_February 18, 2021_19.08.csv", header= TRUE, na.strings = "")
 ```
 
 
-```{r Remove Pilot data}
+```{r Remove Pilot data, echo=FALSE}
 trust <- trust[-c(1:2),]
 trust <- trust[!(trust$Status == "Survey Preview"),]
 
@@ -75,7 +75,7 @@ trust <- trust[,-c(1:18)]
 ```
 
 
-```{r Column Names}
+```{r Column Names, echo=FALSE}
 #Rename Columns
 colnames(trust) <- c("lt.cc.duration", "lt.cc.end", "lt.cc.random",
                      "lt.cc.choice", 
@@ -105,7 +105,7 @@ colnames(trust) <- c("lt.cc.duration", "lt.cc.end", "lt.cc.random",
 ```
 
 
-```{r}
+```{r, echo=FALSE}
 #Remove rows with NA in GAME 1 column
 dim(trust)
 trust <- as_tibble(trust)
@@ -120,7 +120,7 @@ dim(trust)
 ```
 
 
-```{r}
+```{r, echo=FALSE}
 #Convert to numeric type
 cols.num <- c("lt.cc.duration","lt.instruction.first.click", "lt.instruction.last.click",
               "lt.instruction.submit.page","lt.instruction.click.count",
@@ -147,7 +147,7 @@ sapply(trust, class)
 ```
 
 
-```{r}
+```{r,echo=FALSE}
 #Put "cutoff" for people who took longer than 30 seconds in timer conditions
 trust <- within(trust, lt.decision[lt.decision.page.submit >= 30] <- "Cutoff")
 trust <- within(trust, tt.decision[tt.decision.page.submit >= 30] <- "Cutoff")
@@ -162,7 +162,7 @@ sapply(trust, class)
 ```
 
 
-```{r Comprehension Check Questions}
+```{r Comprehension Check Questions, include=FALSE}
 #Lottery Timer
 table(trust$lt.cc.duration)
 table(trust$lt.cc.end)
@@ -180,7 +180,7 @@ table(trust$tt.cc.PersonB)
 
 
 
-```{r Remove Failed Comprehension Check Questions}
+```{r Remove Failed Comprehension Check Questions, include=FALSE}
 #Gather ID's of people who passed Lottery Timer Comp Questions
 lt.pass <- trust$id[c(trust$lt.cc.duration == 30 & 
                      trust$lt.cc.end == "False" & 
