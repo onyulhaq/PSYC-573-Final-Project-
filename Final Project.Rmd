@@ -11,7 +11,7 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, include=FALSE}
+```{r, results= FALSE, warning=FALSE, message=FALSE}
 library(tidyr)
 library(dplyr)
 library(reshape2)
@@ -39,6 +39,11 @@ theme_set(theme_classic() +
     theme(panel.grid.major.y = element_line(color = "grey92")))
 ```
 
+# Research Question
+
+Do people trust less when there is a timer that can cut them off from making a 
+and is this uniquely due to the fact that the origin of risk is a person and
+not nature?
 
 ```{r Directory, include=FALSE}
 #Enter Data
@@ -294,7 +299,7 @@ Prior:
 
 
 Lottery No Timer
-$$\beta_0 \sim N(30, 5) $$
+$$\beta_0 \sim N(0, 1) $$
 
 Difference between Lottery No timer and Trust No Timer
 $$\beta_1 \sim N(0, 1) $$
@@ -306,7 +311,7 @@ Difference between Lottery Timer - Trust Timer beyond the difference of Lottery 
 $$\beta_3 \sim N(0, 1) $$
 
 
-```{r, warning=FALSE}
+```{r, warning=FALSE, cache=TRUE}
 m1 <-brm(
     # Y (vote) = beta0 + beta1 (growth)
     decision ~ game * timer,
