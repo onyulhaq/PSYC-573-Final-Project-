@@ -12,6 +12,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
+library(tidyr)
+library(dplyr)
 library(reshape2)
 library(car)
 library(compute.es)
@@ -24,8 +26,6 @@ library(gmodels)
 library(mlogit)
 library(Hmisc)
 library(brms)
-
-library(tidyverse)
 library(here)  # for easier management of file paths
 library(rstan)
 rstan_options(auto_write = TRUE)  # save compiled Stan object
@@ -336,9 +336,14 @@ mcmc_trace(m1,
 mcmc_dens(m1,
           pars = c("b_Intercept", "b_gameTrust", 
                     "b_timerTimer", "b_gameTrust:timerTimer"))
+
+exp(fixef(m1))
 ```
 
-
+I exponetiated the results of the model to obtain the odds ratio. The only
+the only paramters to obtain a confidence interval not including 1 are intercept
+and the game effect. Thus, the odds that somebody in the trust game would give $5
+is 2.32 (95%c[1.17,4.17]) higher than somebody in the lottery game.
 
 
 
