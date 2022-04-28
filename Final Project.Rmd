@@ -264,6 +264,7 @@ trustlong <- na.omit(trustlong)
 #seconds can be considered as Did not give - can do secondary analysis later
 trustlong <- within(trustlong, decision[submit.decision.sec >= 30] <- "Cutoff")
 trustlong$decision <- ifelse(trustlong$decision == "Option 2", "Give $5", "Did not Give $5")
+trustlong$decision <- as.factor(trustlong$decision)
 trustlong$decision <- as.numeric(trustlong$decision)
 
 #Create Columns to track indepednet effect of Game and Timer
@@ -280,7 +281,6 @@ trustlong$timer <- as.factor(trustlong$timer)
 
 levels(trustlong$game)
 levels(trustlong$timer)
-levels(trustlong$decision)
 ```
 
 ## Bayesian Analysis - Give vs Do not Give
