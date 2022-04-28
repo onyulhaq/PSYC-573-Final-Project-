@@ -329,7 +329,13 @@ m1 <-brm(
     seed = 21
 )
 
-exp(fixef(m1))
+mcmc_trace(m1,
+           pars = c("b_Intercept", "b_gameTrust", 
+                    "b_timerTimer", "b_gameTrust:timerTimer"))
+
+mcmc_dens(m1,
+          pars = c("b_Intercept", "b_gameTrust", 
+                    "b_timerTimer", "b_gameTrust:timerTimer"))
 ```
 
 
