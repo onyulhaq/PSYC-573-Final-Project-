@@ -12,8 +12,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-library(tidyr)
-library(dplyr)
 library(reshape2)
 library(car)
 library(compute.es)
@@ -25,6 +23,20 @@ library(ggplot2)
 library(gmodels)
 library(mlogit)
 library(Hmisc)
+library(brms)
+
+library(tidyverse)
+library(here)  # for easier management of file paths
+library(rstan)
+rstan_options(auto_write = TRUE)  # save compiled Stan object
+library(brms)  # simplify fitting Stan GLM models
+library(shinystan)  # graphical exploration
+library(posterior)  # for summarizing draws
+library(bayesplot)  # for plotting
+library(modelsummary)  # table for brms
+library(ProbBayes)
+theme_set(theme_classic() +
+    theme(panel.grid.major.y = element_line(color = "grey92")))
 ```
 
 
@@ -248,30 +260,77 @@ trustlong <- trustlong %>%
 #Gather complete cases
 trustlong <- na.omit(trustlong)
 
+#Re-categorize dependent for simplicity sake - anybody who took longer than 30
+#seconds can be considered as Did not give - can do secondary analysis later
 trustlong <- within(trustlong, decision[submit.decision.sec >= 30] <- "Cutoff")
 trustlong$decision <- ifelse(trustlong$decision == "Option 2", "Give $5", "Did not Give $5")
-trustlong$decision <- as.factor(trustlong$decision)
+trustlong$decision <- as.numeric(trustlong$decision)
+
+#Create Columns to track indepednet effect of Game and Timer
+trustlong$game <- ifelse(trustlong$condition == "tt.decision" |
+                           trustlong$condition == "tnt.decision",
+                         yes = "Trust",
+                         no = "Lottery")
+trustlong$timer <- ifelse(trustlong$condition == "tt.decision" |
+                           trustlong$condition == "lt.decision",
+                         yes = "Timer",
+                         no = "No Timer")
+trustlong$game <- as.factor(trustlong$game)
+trustlong$timer <- as.factor(trustlong$timer)
+
+levels(trustlong$game)
+levels(trustlong$timer)
+levels(trustlong$decision)
 ```
 
 ## Bayesian Analysis - Give vs Do not Give
 
-```{r}
-#First Create A Prior
-ggplot(tibble(th = c(0, 1)), aes(x = th)) +
-    stat_function(fun = dbeta, args = list(shape1 = 1, shape2 = 3)) +
-    ylim(0, 3) +
-    labs(y = "", x = expression(theta), title = "Beta(1, 3)")
+Model Equation:
+
+$$Decision_i \sim Bin(N ,\theta)$$
+$$ \theta = \beta_o + \beta_1 game_i + \beta_2 timer_i + \beta_3 game_i*timer_i $$
+
+Prior:
 
 
+Lottery No Timer
+$$\beta_0 \sim N(30, 5) $$
+
+Difference between Lottery No timer and Trust No Timer
+$$\beta_1 \sim N(0, 1) $$
+
+Difference between Lottery No Timer - Lottery Timer 
+$$\beta_2 \sim N(0, 1) $$
+Difference between Lottery Timer - Trust Timer beyond the difference of Lottery no Timer and Trust No Timer
+
+$$\beta_3 \sim N(0, 1) $$
+
+
+```{r, warning=FALSE}
+m1 <-brm(
+    # Y (vote) = beta0 + beta1 (growth)
+    decision ~ game * timer,
+    data = trustlong,
+    # Normal distribution with identity link
+    family = binomial,
+    # Overwrite the default priors
+    prior = c(
+        # prior for beta0
+        prior(normal(0,1), class = "Intercept"),
+        # prior for beta1 game
+        prior(normal(0,1), class = "b", coef = "gameTrust"),
+        #prior Beta 2 Time
+        prior(normal(0,1), class = "b", coef = "timerTimer"),
+        #Beta 3 Interaction Term
+        prior(normal(0,1), class = "b", coef = "gameTrust:timerTimer")
+    ),
+    sample_prior = TRUE,  # also sample the prior distributions
+    iter = 4000,  # default is 4 chains, 2000 iterations each
+    seed = 21
+)
+
+exp(fixef(m1))
 ```
-
-
-
-
-
-
-
-
 
 
 
