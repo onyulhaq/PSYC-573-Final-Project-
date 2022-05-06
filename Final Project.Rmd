@@ -185,7 +185,7 @@ table(trust$tt.cc.PersonB)
 
 
 
-```{r Remove Failed Comprehension Check Questions, include=FALSE}
+```{r Remove Failed Comprehension Check Questions, warning=FALSE, results='hide'}
 #Gather ID's of people who passed Lottery Timer Comp Questions
 lt.pass <- trust$id[c(trust$lt.cc.duration == 30 & 
                      trust$lt.cc.end == "False" & 
@@ -288,12 +288,153 @@ levels(trustlong$game)
 levels(trustlong$timer)
 ```
 
+# Manipulation Check
+```{r}
+hist(trust$honor.trust)
+t.test(trust$honor.trust, mu = 45)
+
+#Break it down by timer conditions
+tt.df <-  trust[complete.cases(trust$tt.id),]
+tnt.df <-  trust[complete.cases(trust$tnt.id),]
+mean(tt.df$honor.trust, na.rm = T)
+mean(tnt.df$honor.trust, na.rm = T)
+t.test(tt.df$honor.trust, mu = 45)
+t.test(tnt.df$honor.trust, mu = 45)
+
+```
+
+```{r}
+#How many people were cutoff by game
+lt.df <-  trust[complete.cases(trust$lt.decision.page.submit),]
+sum(lt.df$lt.decision.page.submit >= 30, na.rm = T)
+sum(tt.df$tt.decision.page.submit >= 30, na.rm = T)/length(tt.df$tt.decision.page.submit)
+```
+
+```{r}
+prior.logit.transformation <- function(lower.bound, upperbound){
+  logit.p <- qlogis(c(lower.bound, upperbound))
+new.m <- round(max(logit.p)-(abs(diff(logit.p))/2), digits = 2)
+new.sd <- round((abs(diff(logit.p))/4), digits = 2)
+return(list("m" = new.m, "sd" = new.sd))
+}
+```
+
+
+```{r}
+#Prior For Intercept- Most people are risk averse (prospect theory). 
+#This suggest people will not gamble too much in the lottery game
+#I believe the prior probability will be around 35% with sd of .10
+
+prior.logit.transformation(.15,.55)
+
+#Prior For Beta 1 - effect of game
+#Expect a 30% increase when trust game because prior studies suggest that about 
+#65% of people trust. Ranges from 60-70
+prior.logit.transformation(.60,.70)
+
+#Prior for beta 2 - Effect of time
+#Expect a decrease of about %10 [-.20, 0.0]
+prior.logit.transformation(.15,.35)
+
+#Prior for beta 3 - interaction
+#Expect a decrease of about %10 [-20,0.0]
+prior.logit.transformation(.40,.60)
+
+
+```
+
+
 ## Bayesian Analysis - Give vs Do not Give
 
 Model Equation:
 
 $$Decision_i \sim Bin(N ,\theta)$$
 $$ \theta = \beta_o + \beta_1 game_i + \beta_2 timer_i + \beta_3 game_i*timer_i $$
+
+Prior:
+
+
+Lottery No Timer
+$$\beta_0 \sim N(-.77, .48) $$
+
+Difference between Lottery No timer + Trust No Timer
+$$\beta_1 \sim N(.63, .11) $$
+
+Average difference between Lottery Timer + Lottery no Timer conditions 
+$$\beta_2 \sim N(-1.18, .28) $$
+How the effect of game and timer changes when both together (trust timer)
+
+$$\beta_3 \sim N(0, .2) $$
+
+
+```{r, warning=FALSE, cache=TRUE}
+m1 <-brm(
+    # Y (vote) = beta0 + beta1 (growth)
+    decision ~ game * timer,
+    data = trustlong,
+    # Normal distribution with identity link
+    family = binomial,
+    # Overwrite the default priors
+    prior = c(
+        # prior for beta0
+        prior(normal(-.77,.48), class = "Intercept"),
+        # prior for beta1 game
+        prior(normal(.63,.11), class = "b", coef = "gameTrust"),
+        #prior Beta 2 Time
+        prior(normal(-1.18,.28), class = "b", coef = "timerTimer"),
+        #Beta 3 Interaction Term
+        prior(normal(0,.2), class = "b", coef = "gameTrust:timerTimer")
+    ),
+    sample_prior = TRUE,  # also sample the prior distributions
+    iter = 4000,  # default is 4 chains, 2000 iterations each
+    seed = 21
+)
+
+#Exponentiate Values for Odds Ratios
+##Model Summary 
+msummary(m1, statistic = "conf.int", fmt = 2, exponentiate = T)
+
+m1
+#Convergent Plot
+mcmc_trace(m1,
+           pars = c("b_Intercept", "b_gameTrust", 
+                    "b_timerTimer", "b_gameTrust:timerTimer"),
+           transformations = "exp")
+
+#Posterior Distribution
+mcmc_dens(m1,
+          pars = c("b_Intercept", "b_gameTrust", 
+                    "b_timerTimer", "b_gameTrust:timerTimer"),
+           transformations = "exp")
+
+
+
+```
+
+I exponetiated the results of the model to obtain the odds ratio. The only
+the only paramters to obtain a confidence interval not including 1 are intercept
+and the game effect. Thus, the odds that somebody in the trust game would give $5
+is 2.32 (95%c[1.17,4.17]) higher than somebody in the lottery game.
+
+# Bayes Analysis Model 2 - Time to Decide
+
+```{r}
+# Data summary for DV ~ conditions
+datasummary(submit.decision.sec ~ condition * (Mean + SD + Histogram), data = trustlong)
+```
+
+Since the data is heavily skewed we need to log transform it
+
+
+```{r}
+# Data summary for DV ~ conditions
+datasummary(log(submit.decision.sec) ~ condition * (Mean + SD + Histogram), data = trustlong)
+```
+
+Model Equation:
+
+$$Time_i \sim Lognormal(\mu ,\sigma)$$
+$$ \mu = \beta_o + \beta_1 game_i + \beta_2 timer_i + \beta_3 game_i*timer_i $$
 
 Prior:
 
@@ -307,17 +448,19 @@ $$\beta_1 \sim N(0, 1) $$
 Difference between Lottery No Timer - Lottery Timer 
 $$\beta_2 \sim N(0, 1) $$
 Difference between Lottery Timer - Trust Timer beyond the difference of Lottery no Timer and Trust No Timer
-
 $$\beta_3 \sim N(0, 1) $$
 
+$$\sigma \sim t_5(0, .2) $$
 
-```{r, warning=FALSE, cache=TRUE}
-m1 <-brm(
+
+
+```{r, cache=TRUE}
+m2 <-brm(
     # Y (vote) = beta0 + beta1 (growth)
-    decision ~ game * timer,
+    log(submit.decision.sec) ~ game * timer,
     data = trustlong,
     # Normal distribution with identity link
-    family = binomial,
+    family = gaussian(link = "identity"),
     # Overwrite the default priors
     prior = c(
         # prior for beta0
@@ -327,33 +470,30 @@ m1 <-brm(
         #prior Beta 2 Time
         prior(normal(0,1), class = "b", coef = "timerTimer"),
         #Beta 3 Interaction Term
-        prior(normal(0,1), class = "b", coef = "gameTrust:timerTimer")
+        prior(normal(0,1), class = "b", coef = "gameTrust:timerTimer"),
+        # Residuals
+        prior(student_t(5,0,.5), class = "sigma")
     ),
     sample_prior = TRUE,  # also sample the prior distributions
     iter = 4000,  # default is 4 chains, 2000 iterations each
     seed = 21
 )
+# Smmary of Model
+msummary(m2, statistic = "conf.int", fmt = 2,)
 
-mcmc_trace(m1,
+#Convergence Plot
+mcmc_trace(m2,
            pars = c("b_Intercept", "b_gameTrust", 
                     "b_timerTimer", "b_gameTrust:timerTimer"))
-
-mcmc_dens(m1,
+#Posterior Distribution
+mcmc_dens(m2,
           pars = c("b_Intercept", "b_gameTrust", 
                     "b_timerTimer", "b_gameTrust:timerTimer"))
-
-exp(fixef(m1))
 ```
 
-I exponetiated the results of the model to obtain the odds ratio. The only
-the only paramters to obtain a confidence interval not including 1 are intercept
-and the game effect. Thus, the odds that somebody in the trust game would give $5
-is 2.32 (95%c[1.17,4.17]) higher than somebody in the lottery game.
 
 
-
-
-
+Only significant effect was that of game. 
 
 
 
