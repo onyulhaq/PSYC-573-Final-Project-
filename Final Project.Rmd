@@ -152,7 +152,7 @@ sapply(trust, class)
 ```
 
 
-```{r,include=FALSE}
+```{r, include = FALSE}
 #Put "cutoff" for people who took longer than 30 seconds in timer conditions
 trust <- within(trust, lt.decision[lt.decision.page.submit >= 30] <- "Cutoff")
 trust <- within(trust, tt.decision[tt.decision.page.submit >= 30] <- "Cutoff")
@@ -348,26 +348,27 @@ prior.logit.transformation(.40,.60)
 
 Model Equation:
 
-$$Decision_i \sim Bin(N ,\theta)$$
-$$ \theta = \beta_o + \beta_1 game_i + \beta_2 timer_i + \beta_3 game_i*timer_i $$
+$$Decision_i = Bin(N ,\theta)$$
+$$\theta = \beta_o + \beta_1 game_i + \beta_2 timer_i + \beta_3 game_i*timer_i$$
 
 Prior:
 
 
 Lottery No Timer
-$$\beta_0 \sim N(-.77, .48) $$
+$$\beta_0 = N(-.77, .48)$$
 
 Difference between Lottery No timer + Trust No Timer
-$$\beta_1 \sim N(.63, .11) $$
+$$\beta_1 = N(.63, .11)$$
 
 Average difference between Lottery Timer + Lottery no Timer conditions 
-$$\beta_2 \sim N(-1.18, .28) $$
+$$\beta_2 = N(-1.18, .28)$$
 How the effect of game and timer changes when both together (trust timer)
 
-$$\beta_3 \sim N(0, .2) $$
+$$\beta_3 = N(0, .2)$$
 
 
-```{r, warning=FALSE, cache=TRUE}
+
+```{r, warning=FALSE}
 m1 <-brm(
     # Y (vote) = beta0 + beta1 (growth)
     decision ~ game * timer,
@@ -413,48 +414,61 @@ mcmc_dens(m1,
 
 I exponetiated the results of the model to obtain the odds ratio. The only
 the only paramters to obtain a confidence interval not including 1 are intercept
-and the game effect. Thus, the odds that somebody in the trust game would give $5
-is 2.32 (95%c[1.17,4.17]) higher than somebody in the lottery game.
+and the game effect. Thus, the odds that somebody in the trust game would give 5 dollars
+is 2.32 (95 confidence interval 1.17,4.17) higher than somebody in the lottery game.
 
 # Bayes Analysis Model 2 - Time to Decide
 
 ```{r}
+#HIstograms Raw
+hist(trust$lnt.decision.page.submit)
+hist(trust$lt.decision.page.submit)
+hist(trust$tnt.decision.page.submit)
+hist(trust$tt.decision.page.submit)
+
 # Data summary for DV ~ conditions
-datasummary(submit.decision.sec ~ condition * (Mean + SD + Histogram), data = trustlong)
+datasummary(submit.decision.sec ~ condition * (mean + sd), data = trustlong)
 ```
 
 Since the data is heavily skewed we need to log transform it
 
 
 ```{r}
+#HIstograms after log transformation
+hist(log(trust$lnt.decision.page.submit))
+hist(log(trust$lt.decision.page.submit))
+hist(log(trust$tnt.decision.page.submit))
+hist(log(trust$tt.decision.page.submit))
+
 # Data summary for DV ~ conditions
-datasummary(log(submit.decision.sec) ~ condition * (Mean + SD + Histogram), data = trustlong)
+datasummary(log(submit.decision.sec) ~ condition * (mean + sd), data = trustlong)
 ```
+
 
 Model Equation:
 
-$$Time_i \sim Lognormal(\mu ,\sigma)$$
-$$ \mu = \beta_o + \beta_1 game_i + \beta_2 timer_i + \beta_3 game_i*timer_i $$
+$$Time_i = Lognormal(\mu ,\sigma)$$
+$$\mu = \beta_o + \beta_1 game_i + \beta_2 timer_i + \beta_3 game_i*timer_i$$
 
 Prior:
 
 
 Lottery No Timer
-$$\beta_0 \sim N(0, 1) $$
+$$\beta_0 = N(0, 1)$$
 
 Difference between Lottery No timer and Trust No Timer
-$$\beta_1 \sim N(0, 1) $$
+$$\beta_1 = N(0, 1)$$
 
 Difference between Lottery No Timer - Lottery Timer 
-$$\beta_2 \sim N(0, 1) $$
+$$\beta_2 = N(0, 1)$$
 Difference between Lottery Timer - Trust Timer beyond the difference of Lottery no Timer and Trust No Timer
-$$\beta_3 \sim N(0, 1) $$
+$$\beta_3 = N(0, 1)$$
 
-$$\sigma \sim t_5(0, .2) $$
+$$\sigma = t_{5}(0, .2)$$
 
 
 
-```{r, cache=TRUE}
+```{r}
 m2 <-brm(
     # Y (vote) = beta0 + beta1 (growth)
     log(submit.decision.sec) ~ game * timer,
@@ -478,7 +492,7 @@ m2 <-brm(
     iter = 4000,  # default is 4 chains, 2000 iterations each
     seed = 21
 )
-# Smmary of Model
+# Summary of Model
 msummary(m2, statistic = "conf.int", fmt = 2,)
 
 #Convergence Plot
